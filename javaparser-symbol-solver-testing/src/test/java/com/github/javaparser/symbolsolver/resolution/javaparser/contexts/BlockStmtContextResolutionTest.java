@@ -21,20 +21,26 @@
 
 package com.github.javaparser.symbolsolver.resolution.javaparser.contexts;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import com.github.javaparser.ParserConfiguration;
+import com.github.javaparser.Position;
+import com.github.javaparser.Range;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.expr.AssignExpr;
+import com.github.javaparser.ast.expr.NameExpr;
+import com.github.javaparser.resolution.declarations.ResolvedValueDeclaration;
 import com.github.javaparser.resolution.types.ResolvedType;
 import com.github.javaparser.symbolsolver.JavaSymbolSolver;
+import com.github.javaparser.symbolsolver.javaparsermodel.declarations.JavaParserFieldDeclaration;
+import com.github.javaparser.symbolsolver.javaparsermodel.declarations.JavaParserVariableDeclaration;
 import com.github.javaparser.symbolsolver.resolution.AbstractResolutionTest;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.CombinedTypeSolver;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.ReflectionTypeSolver;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  *
@@ -60,9 +66,24 @@ class BlockStmtContextResolutionTest extends AbstractResolutionTest {
                 .setSymbolResolver(new JavaSymbolSolver(new CombinedTypeSolver(new ReflectionTypeSolver())));
         StaticJavaParser.setConfiguration(configuration);
         CompilationUnit cu = StaticJavaParser.parse(src);
+
         AssignExpr expr = cu.findFirst(AssignExpr.class).get();
+
+        // Type of the AssignExpr
         ResolvedType rt = expr.calculateResolvedType();
         assertEquals("int", rt.describe());
+
+        // Type of the Declaration of the target of the AssignExpr
+        NameExpr nameExpr = expr.getTarget().asNameExpr();
+        assertEquals("a", nameExpr.getNameAsString());
+        ResolvedValueDeclaration rvd = nameExpr.resolve();
+        assertEquals("int", rvd.getType().describe());
+        if (rvd instanceof JavaParserFieldDeclaration) {
+            JavaParserFieldDeclaration javaParserFieldDeclaration = (JavaParserFieldDeclaration) rvd;
+            Range range = javaParserFieldDeclaration.getWrappedNode().getRange().get();
+            assertEquals(new Range(new Position(2, 5), new Position(2, 14)), range);
+        }
+        else fail();
     }
     
     @Test
@@ -80,8 +101,21 @@ class BlockStmtContextResolutionTest extends AbstractResolutionTest {
         StaticJavaParser.setConfiguration(configuration);
         CompilationUnit cu = StaticJavaParser.parse(src);
         AssignExpr expr = cu.findAll(AssignExpr.class).get(1);
+
+        // Type of the AssignExpr
         ResolvedType rt2 = expr.calculateResolvedType();
         assertEquals("java.lang.String", rt2.describe());
-    }
 
+        // Type of the Declaration of the target of the AssignExpr
+        NameExpr nameExpr = expr.getTarget().asNameExpr();
+        assertEquals("a", nameExpr.getNameAsString());
+        ResolvedValueDeclaration rvd = nameExpr.resolve();
+        assertEquals("java.lang.String", rvd.getType().describe());
+        if (rvd instanceof JavaParserVariableDeclaration) {
+            JavaParserVariableDeclaration javaParserVariableDeclaration = (JavaParserVariableDeclaration) rvd;
+            Range range = javaParserVariableDeclaration.getWrappedNode().getRange().get();
+            assertEquals(new Range(new Position(5, 9), new Position(5, 21)), range);
+        }
+        else fail();
+    }
 }
